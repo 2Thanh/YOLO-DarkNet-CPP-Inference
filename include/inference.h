@@ -64,6 +64,7 @@ namespace YOLOUtils {
 void run_image_inference(const std::string& image_path, YOLODetector& detector);
 
 // Function to run inference on a camera stream
-void run_camera_inference(int camera_index, YOLODetector& detector);
+void run_camera_inference(int camera_index, YOLODetector& detector, int num_skipped_frames=5);
 
+void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, int num_skipped_frames=5);
 #endif // YOLO_DETECTOR_H

@@ -208,20 +208,47 @@ void run_image_inference(const std::string& image_path, YOLODetector& detector)
     cv::waitKey(0);
 }
 
-void run_camera_inference(int camera_index, YOLODetector& detector) {
+void run_camera_inference(int camera_index, YOLODetector& detector, int num_skipped_frames) {
     cv::VideoCapture cap(camera_index);
     if (!cap.isOpened()) {
         std::cerr << "Could not open camera: " << camera_index << std::endl;
         return;
     }
     cv::Mat frame;
+    int frame_count = 0;
     while (true) {
+        if (num_skipped_frames > 0 && ++frame_count % num_skipped_frames == 0) {
+            continue; // Skip frames for performance
+        }
         cap >> frame;
         if (frame.empty()) break;
         // Replace with your actual inference function
         std::vector<Detection> detections = detector.detect(frame);
         YOLOUtils::drawDetections(frame, detections);
         cv::imshow("Realtime Inference", frame);
+        if (cv::waitKey(1) == 27) break; // ESC to exit
+    }
+    cap.release();
+    cv::destroyAllWindows();
+}
+void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, int num_skipped_frames) {
+    cv::VideoCapture cap(rtsp_url);
+    if (!cap.isOpened()) {
+        std::cerr << "Could not open RTSP stream: " << rtsp_url << std::endl;
+        return;
+    }
+    cv::Mat frame;
+    int frame_count = 0;
+    while (true) {
+        if (num_skipped_frames > 0 && ++frame_count % num_skipped_frames == 0) {
+            continue; // Skip frames for performance
+        }
+        cap >> frame;
+        if (frame.empty()) break;
+        // Replace with your actual inference function
+        std::vector<Detection> detections = detector.detect(frame);
+        YOLOUtils::drawDetections(frame, detections);
+        cv::imshow("RTSP Inference", frame);
         if (cv::waitKey(1) == 27) break; // ESC to exit
     }
     cap.release();

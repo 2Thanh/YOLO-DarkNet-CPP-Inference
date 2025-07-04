@@ -14,12 +14,14 @@ int main(int argc, char** argv) {
     }
 
     // Required arguments
-    if ((args.find("--image") == args.end() && args.find("--camera") == args.end()) ||
+    if ((args.find("--image") == args.end() && args.find("--camera") == args.end()) && args.find("--rtsp_url") == args.end()||
         args.find("--weights") == args.end() || args.find("--cfg") == args.end()) {
         std::cout << "Usage:\n"
                   << "  " << argv[0] << " --image <image_path>\n"
                   << "  OR\n"
                   << "  " << argv[0] << " --camera <camera_index>\n"
+                  << "  OR\n"
+                  << "  " << argv[0] << " --rtsp_url <rtsp_url>\n"
                   << "Required:\n"
                   << "  --weights <weights_path>\n"
                   << "  --cfg <config_path>\n"
@@ -62,6 +64,11 @@ int main(int argc, char** argv) {
         int cam_idx = std::stoi(args["--camera"]);
         run_camera_inference(cam_idx, detector);
     }
-
+    else if (args.count("--rtsp_url")) {
+        run_rtsp_inference(args["--rtsp_url"], detector);
+    } else {
+        std::cerr << "No valid input source provided." << std::endl;
+        return 1;
+    }
     return 0;
 }
