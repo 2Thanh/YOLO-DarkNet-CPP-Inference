@@ -163,7 +163,9 @@ namespace YOLOUtils {
         for (const auto& detection : detections) {
             // Draw bounding box
             cv::rectangle(image, detection.bbox, cv::Scalar(0, 255, 0), 2);
-            
+            printf("Detected %s with confidence %.2f in location (%d, %d, %d, %d)\n", 
+                  detection.class_name.c_str(), detection.confidence, detection.bbox.x, 
+                  detection.bbox.y, detection.bbox.width, detection.bbox.height);
             // Draw label
             std::string label = detection.class_name + ": " + 
                               std::to_string(detection.confidence);
