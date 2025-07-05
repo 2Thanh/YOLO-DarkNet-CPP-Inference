@@ -2,6 +2,7 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 #include "inference.h"
+#include "read_json.h"
 
 #include <iostream>
 #include <string>
@@ -15,7 +16,7 @@ int main(int argc, char** argv) {
 
     // Required arguments
     if ((args.find("--image") == args.end() && args.find("--camera") == args.end()) && args.find("--rtsp_url") == args.end()||
-        args.find("--weights") == args.end() || args.find("--cfg") == args.end()) {
+        args.find("--weights") == args.end() || args.find("--cfg") == args.end() || args.find("--intrusion") == args.end()) {
         std::cout << "Usage:\n"
                   << "  " << argv[0] << " --image <image_path>\n"
                   << "  OR\n"
@@ -28,14 +29,16 @@ int main(int argc, char** argv) {
                   << "Optional:\n"
                   << "  --names <class_names_path> (default: coco.names)\n"
                   << "  --conf <confidence_threshold> (default: 0.25)\n"
-                  << "  --nms <nms_threshold> (default: 0.4)\n";
-        return 1;
-    }
+                  << "  --nms <nms_threshold> (default: 0.4)\n"
+                  << "  --intrusion <enable_intrusion> (default: false)\n";
+        }
 
     // Assign required paths
     std::string model_path = args["--weights"];
     std::string config_path = args["--cfg"];
-
+    bool enable_intrusion = args.count("--intrusion") 
+        ? (args["--intrusion"] == "true" || args["--intrusion"] == "1") 
+        : false;
     // Optional with defaults
     std::string class_names_path = args.count("--names") 
         ? args["--names"] 
@@ -62,10 +65,13 @@ int main(int argc, char** argv) {
         run_image_inference(args["--image"], detector);
     } else if (args.count("--camera")) {
         int cam_idx = std::stoi(args["--camera"]);
-        run_camera_inference(cam_idx, detector);
+        run_camera_inference(cam_idx, detector, 5);
     }
     else if (args.count("--rtsp_url")) {
-        run_rtsp_inference(args["--rtsp_url"], detector);
+        std::cout << "Running RTSP inference on: " << args["--rtsp_url"] << std::endl;
+        run_rtsp_inference(args["--rtsp_url"], detector, 5, 
+                           enable_intrusion,
+                           "features/boxes.json");
     } else {
         std::cerr << "No valid input source provided." << std::endl;
         return 1;

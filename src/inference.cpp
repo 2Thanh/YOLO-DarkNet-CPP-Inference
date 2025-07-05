@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <read_json.h>
 
 // Detection struct implementation
 Detection::Detection(int id, float conf, cv::Rect box, const std::string& name)
@@ -158,7 +159,7 @@ namespace YOLOUtils {
         }
         return class_names;
     }
-    
+
     void drawDetections(cv::Mat& image, const std::vector<Detection>& detections) {
         for (const auto& detection : detections) {
             // Draw bounding box
@@ -233,7 +234,9 @@ void run_camera_inference(int camera_index, YOLODetector& detector, int num_skip
     cap.release();
     cv::destroyAllWindows();
 }
-void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, int num_skipped_frames) {
+void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, 
+                        int num_skipped_frames, bool intrusion_feature, 
+                        const std::string& boxes_json_path) {
     cv::VideoCapture cap(rtsp_url);
     if (!cap.isOpened()) {
         std::cerr << "Could not open RTSP stream: " << rtsp_url << std::endl;
@@ -241,18 +244,102 @@ void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, int
     }
     cv::Mat frame;
     int frame_count = 0;
+    std::vector<Box> intrusion_areas;
+    std::cout << "Intrusion feature enabled: " << (intrusion_feature ? "Yes" : "No") << std::endl;
+    if (intrusion_feature) {
+        intrusion_areas = read_json(boxes_json_path);
+        std::cout << "Checking for intrusions..." << std::endl;
+        std::cout << "Read " << intrusion_areas.size() << " boxes from JSON." << std::endl;
+        if (intrusion_areas.empty()) {
+            std::cerr << "No boxes found in JSON file: " << boxes_json_path << std::endl;}
+        else{
+            std::cout << "Box xywh: " << intrusion_areas[0].x1 << ", " << intrusion_areas[0].y1 
+                        << ", " << intrusion_areas[0].x2 << ", " << intrusion_areas[0].y2 << std::endl;
+        }
+    }
     while (true) {
+        std::cout << "Processing frame: " << frame_count << std::endl;
         if (num_skipped_frames > 0 && ++frame_count % num_skipped_frames == 0) {
             continue; // Skip frames for performance
         }
         cap >> frame;
-        if (frame.empty()) break;
+        if (frame.empty()) {
+            std::cerr << "Empty frame received from RTSP stream." << std::endl;
+            break;
+        }
+
+        // Draw intrusion boxes
+        if (intrusion_feature && !intrusion_areas.empty()) {
+            std::cout << "Drawing intrusion areas..." << std::endl;
+            for (const auto& intrusion_area : intrusion_areas) {
+                std::cout << "Drawing intrusion area: " 
+                        << intrusion_area.x1 << ", " << intrusion_area.y1 
+                        << ", " << intrusion_area.x2 << ", " << intrusion_area.y2 << std::endl;
+                cv::rectangle(frame, cv::Point(intrusion_area.x1, intrusion_area.y1), 
+                            cv::Point(intrusion_area.x2, intrusion_area.y2), 
+                            cv::Scalar(255, 0, 0), 2);
+            };
+        }
         // Replace with your actual inference function
         std::vector<Detection> detections = detector.detect(frame);
+        std::cout << "Detected " << detections.size() << " objects in frame." << std::endl;
         YOLOUtils::drawDetections(frame, detections);
+        if (isIntrusion(detections, intrusion_areas, frame.size(), detector.getConfidenceThreshold())) {
+            cv::putText(frame, "Intrusion Detected!", cv::Point(10, 30), 
+                        cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
+        }
         cv::imshow("RTSP Inference", frame);
         if (cv::waitKey(1) == 27) break; // ESC to exit
     }
     cap.release();
     cv::destroyAllWindows();
 }
+
+std::vector<Box> read_json(const std::string& filename) {
+    std::vector<Box> boxes;
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Could not open the file: " << filename << std::endl
+                    << "Please check the file path and try again." << std::endl;
+         // Return empty vector if file cannot be opened
+        return boxes;
+    }
+    else {
+        nlohmann::json json_data;
+        file >> json_data;
+        for (const auto& item : json_data) {
+            std::cout << "Processing item: " << item.dump() << std::endl;
+            if (item.contains("x1") && item.contains("x2") && 
+                item.contains("y1") && item.contains("y2")) {
+                boxes.emplace_back(item["x1"].get<int>(), item["y1"].get<int>(), 
+                                   item["x2"].get<int>(), item["y2"].get<int>());
+            } else {
+                std::cerr << "Invalid box format in JSON file." << std::endl;
+            }
+        }
+    }
+    return boxes;
+
+}
+
+bool isIntrusion(const std::vector<Detection>& detections, const std::vector<Box>& boxes, 
+                     const cv::Size& image_size, float threshold) {
+        for (const auto& detection : detections) {
+            if (detection.confidence >= threshold) {
+                // Check if the bounding box is within the boxes defined in the JSON
+                for (const auto&detection : detections) {
+                    for (const auto& box : boxes) {
+                        // Check if the detection bbox intersects with any box
+                        if (detection.bbox.x < box.x2 && detection.bbox.x + detection.bbox.width > box.x1 &&
+                            detection.bbox.y < box.y2 && detection.bbox.y + detection.bbox.height > box.y1) {
+                            std::cout << "Intrusion detected in area defined by box: "
+                                      << "x1=" << box.x1 << ", y1=" << box.y1 
+                                      << ", x2=" << box.x2 << ", y2=" << box.y2 << std::endl;
+                            return true; // Intrusion detected
+                        }
+                    }
+                }
+            }
+        }
+        return false; // No intrusion detected
+    }

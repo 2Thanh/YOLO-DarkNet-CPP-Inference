@@ -51,6 +51,7 @@ private:
 public:
     YOLODetector(const YOLOConfig& cfg);
     std::vector<Detection> detect(const cv::Mat& image);
+    float getConfidenceThreshold() const { return config.confidence_threshold; }
 };
 
 // Utility functions namespace
@@ -66,5 +67,7 @@ void run_image_inference(const std::string& image_path, YOLODetector& detector);
 // Function to run inference on a camera stream
 void run_camera_inference(int camera_index, YOLODetector& detector, int num_skipped_frames=5);
 
-void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, int num_skipped_frames=5);
+void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, int num_skipped_frames=5, 
+                        bool intrusion_feature = false, 
+                        const std::string& boxes_json_path = "/home/thanhvl/Documents/Works/YOLO-DarkNet-CPP-Inference/features/boxes.json");
 #endif // YOLO_DETECTOR_H
