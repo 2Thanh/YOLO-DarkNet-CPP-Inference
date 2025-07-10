@@ -37,7 +37,7 @@ A high-performance C++ application for running YOLO (You Only Look Once) Darknet
 ## Build Instructions
 
 ```bash
-git clone https://github.com/yourusername/YOLO-DarkNet-CPP-Inference.git
+git clone https://github.com/2Thanh/YOLO-DarkNet-CPP-Inference.git
 cd YOLO-DarkNet-CPP-Inference
 mkdir build && cd build
 cmake ..
