@@ -3,6 +3,8 @@
 #include <iostream>
 #include <algorithm>
 #include <read_json.h>
+//import tracker
+#include "centroid_tracker.h"
 
 // Detection struct implementation
 Detection::Detection(int id, float conf, cv::Rect box, const std::string& name)
@@ -58,6 +60,8 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
     // Build final detection results
     std::vector<Detection> detections;
     for (int idx : indices) {
+        //only get car
+        if (class_ids[idx] != 2) continue; // Assuming class_id 2 is 'car'
         std::string class_name = (class_ids[idx] < config.class_names.size()) ? 
                                config.class_names[class_ids[idx]] : 
                                "Unknown";
@@ -236,7 +240,7 @@ void run_camera_inference(int camera_index, YOLODetector& detector, int num_skip
 }
 void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector, 
                         int num_skipped_frames, bool intrusion_feature, 
-                        const std::string& boxes_json_path) {
+                        const std::string& boxes_json_path, bool tracking_enable) {
     cv::VideoCapture cap(rtsp_url);
     if (!cap.isOpened()) {
         std::cerr << "Could not open RTSP stream: " << rtsp_url << std::endl;
@@ -287,6 +291,43 @@ void run_rtsp_inference(const std::string& rtsp_url, YOLODetector& detector,
         if (isIntrusion(detections, intrusion_areas, frame.size(), detector.getConfidenceThreshold())) {
             cv::putText(frame, "Intrusion Detected!", cv::Point(10, 30), 
                         cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
+        }
+
+        if (tracking_enable) {
+            int max_disappeared = 25; // Set maximum number of frames an object can be missing
+            auto tracker = new CentroidTracker(max_disappeared);
+            std::cout << "Tracking enabled. Initializing tracker..." << std::endl;
+            // Prepare boxes for tracker: [x1, y1, x2, y2]
+            std::vector<std::vector<int>> tracker_boxes;
+            std::vector<std::pair<int, int>> centered_points;
+            for (const auto& detection : detections) {
+                tracker_boxes.push_back({
+                    detection.bbox.x,
+                    detection.bbox.y,
+                    detection.bbox.x + detection.bbox.width,
+                    detection.bbox.y + detection.bbox.height
+                });
+                centered_points.push_back(
+                    std::make_pair(detection.bbox.x + detection.bbox.width / 2, 
+                                   detection.bbox.y + detection.bbox.height / 2)
+            );
+            }
+            // Update tracker and get tracked objects
+            auto tracked_objects = tracker->update(tracker_boxes);
+            // Draw tracked object IDs
+            for (const auto& obj : tracked_objects) {
+                int objectID = obj.first;
+                int cx = obj.second.first;
+                int cy = obj.second.second;
+                auto it = std::find(centered_points.begin(), centered_points.end(), std::make_pair(cx, cy));
+                // put id top right of bounding box
+                Detection top_right = detections[std::distance(centered_points.begin(), it)]; // Convert iterator to index
+                int top_right_box_x = top_right.bbox.x + top_right.bbox.width;
+                int top_right_box_y = top_right.bbox.y;
+                cv::putText(frame, "ID: " + std::to_string(objectID), cv::Point(top_right_box_x, top_right_box_y),
+                            cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 2);
+                cv::circle(frame, cv::Point(cx, cy), 4, cv::Scalar(0, 0, 255), -1);
+            }
         }
         cv::imshow("RTSP Inference", frame);
         if (cv::waitKey(1) == 27) break; // ESC to exit

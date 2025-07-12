@@ -13,6 +13,7 @@ include_directories(
 add_executable(cv_app
     src/main.cpp
     src/inference.cpp
+    src/centroid_tracker.cpp  # Ensure this file is included
 )
 
 target_link_libraries(cv_app ${OpenCV_LIBS})

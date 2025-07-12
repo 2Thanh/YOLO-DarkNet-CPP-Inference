@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
         std::cout << "Running RTSP inference on: " << args["--rtsp_url"] << std::endl;
         run_rtsp_inference(args["--rtsp_url"], detector, 5, 
                            enable_intrusion,
-                           "features/boxes.json");
+                           "features/boxes.json", true);
     } else {
         std::cerr << "No valid input source provided." << std::endl;
         return 1;
